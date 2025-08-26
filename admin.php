@@ -2,7 +2,19 @@
 include "headers.php";
 
 class Admin {
-  
+  function login($json) {
+    // { "email": "admin@gmail.com", "password": "admin" }
+    include "connection.php";
+    $data = json_decode($json);
+    $email = $data->email;
+    $password = $data->password;
+    $sql = "SELECT * FROM tbluser WHERE user_email = :email AND BINARY user_password = :password";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":email", $email);
+    $stmt->bindParam(":password", $password);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? json_encode($stmt->fetch(PDO::FETCH_ASSOC)) : 0;
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -22,9 +34,9 @@ $operation = isset($_POST["operation"]) ? $_POST["operation"] : "0";
 $admin = new Admin();
 
 switch ($operation) {
-  // case "login":
-  //   echo $admin->login($json);
-  //   break;
+  case "login":
+    echo $admin->login($json);
+    break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
     break;
