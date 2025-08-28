@@ -55,6 +55,70 @@ class Admin
       return [];
     }
   }
+
+  function setFacultyInClassStatus()
+  {
+    include "connection.php";
+
+    try {
+      // Get today's day name (e.g., "Wednesday")
+      $today = date("l");
+
+      // Get current time
+      $currentTime = date("H:i:s");
+
+      // Fetch all schedules for today
+      $sql = "SELECT * FROM tblfacultyschedule WHERE sched_day = :today";
+      $stmt = $conn->prepare($sql);
+      $stmt->execute(['today' => $today]);
+      $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+      foreach ($schedules as $sched) {
+        $start  = $sched['sched_startTime'];
+        $end    = $sched['sched_endTime'];
+        $userId = $sched['sched_userId'];
+
+        if ($currentTime >= $start && $currentTime <= $end) {
+          $checkSql = "SELECT COUNT(*) FROM tblfacultystatus 
+                            WHERE facStatus_userId = :userId 
+                              AND DATE(facStatus_dateTime) = CURDATE()
+                              AND facStatus_statusMId = 3";
+          $checkStmt = $conn->prepare($checkSql);
+          $checkStmt->execute(['userId' => $userId]);
+          $exists = $checkStmt->fetchColumn();
+
+          if ($exists == 0) {
+            $insertSql = "INSERT INTO tblfacultystatus 
+                                  (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
+                                  VALUES (:userId, 3, 'In class', NOW())";
+            $insertStmt = $conn->prepare($insertSql);
+            $insertStmt->execute(['userId' => $userId]);
+          }
+        }
+        else {
+          $checkSql = "SELECT COUNT(*) FROM tblfacultystatus 
+                            WHERE facStatus_userId = :userId 
+                              AND DATE(facStatus_dateTime) = CURDATE()
+                              AND facStatus_statusMId = 1";
+          $checkStmt = $conn->prepare($checkSql);
+          $checkStmt->execute(['userId' => $userId]);
+          $exists = $checkStmt->fetchColumn();
+
+          if ($exists == 0) {
+            $insertSql = "INSERT INTO tblfacultystatus 
+                                  (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
+                                  VALUES (:userId, 1, 'In Office', NOW())";
+            $insertStmt = $conn->prepare($insertSql);
+            $insertStmt->execute(['userId' => $userId]);
+          }
+        }
+      }
+
+      return 1;
+    } catch (\Throwable $th) {
+      return $th;
+    }
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -79,6 +143,9 @@ switch ($operation) {
     break;
   case "getAllFacultySchedules":
     echo json_encode($admin->getAllFacultySchedules());
+    break;
+  case "setFacultyInClassStatus":
+    echo $admin->setFacultyInClassStatus();
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
