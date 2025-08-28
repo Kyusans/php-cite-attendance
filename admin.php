@@ -1,8 +1,10 @@
 <?php
 include "headers.php";
 
-class Admin {
-  function login($json) {
+class Admin
+{
+  function login($json)
+  {
     // { "email": "admin@gmail.com", "password": "admin" }
     include "connection.php";
     $data = json_decode($json);
@@ -14,6 +16,16 @@ class Admin {
     $stmt->bindParam(":password", $password);
     $stmt->execute();
     return $stmt->rowCount() > 0 ? json_encode($stmt->fetch(PDO::FETCH_ASSOC)) : 0;
+  }
+  function getAllFacultySchedules()
+  {
+    include "connection.php";
+    $sql = "SELECT a.*, CONCAT(b.user_lastName, ', ', b.user_firstName, ' ', b.user_middleName) AS fullName 
+            FROM tblfacultyschedule a
+            INNER JOIN tbluser b ON b.user_id = a.sched_userId";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
   }
 } //admin 
 
@@ -36,6 +48,9 @@ $admin = new Admin();
 switch ($operation) {
   case "login":
     echo $admin->login($json);
+    break;
+  case "getAllFacultySchedules":
+    echo json_encode($admin->getAllFacultySchedules());
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
