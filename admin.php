@@ -17,6 +17,7 @@ class Admin
     $stmt->execute();
     return $stmt->rowCount() > 0 ? json_encode($stmt->fetch(PDO::FETCH_ASSOC)) : 0;
   }
+
   function getAllFacultySchedules()
   {
     include "connection.php";
@@ -98,37 +99,51 @@ class Admin
         $end    = $sched['sched_endTime'];
         $userId = $sched['sched_userId'];
 
+        // ✅ Get the latest status of this faculty for today
+        $latestSql = "SELECT facStatus_statusMId 
+                      FROM tblfacultystatus 
+                    WHERE facStatus_userId = :userId 
+                      AND DATE(facStatus_dateTime) = CURDATE()
+                  ORDER BY facStatus_dateTime DESC 
+                    LIMIT 1";
+        $latestStmt = $conn->prepare($latestSql);
+        $latestStmt->execute(['userId' => $userId]);
+        $latestStatus = $latestStmt->fetchColumn();
+
+        // If current time is within the faculty's schedule → IN CLASS
         if ($currentTime >= $start && $currentTime <= $end) {
           $checkSql = "SELECT COUNT(*) FROM tblfacultystatus 
-                            WHERE facStatus_userId = :userId 
-                              AND DATE(facStatus_dateTime) = CURDATE()
-                              AND facStatus_statusMId = 3";
+                          WHERE facStatus_userId = :userId 
+                            AND DATE(facStatus_dateTime) = CURDATE()
+                            AND facStatus_statusMId = 3";
           $checkStmt = $conn->prepare($checkSql);
           $checkStmt->execute(['userId' => $userId]);
           $exists = $checkStmt->fetchColumn();
 
           if ($exists == 0) {
             $insertSql = "INSERT INTO tblfacultystatus 
-                                  (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
-                                  VALUES (:userId, 3, 'In class', NOW())";
+                                (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
+                                VALUES (:userId, 3, 'In class', NOW())";
             $insertStmt = $conn->prepare($insertSql);
             $insertStmt->execute(['userId' => $userId]);
           }
         } else {
-          $checkSql = "SELECT COUNT(*) FROM tblfacultystatus 
+          if ($latestStatus != 2) {
+            $checkSql = "SELECT COUNT(*) FROM tblfacultystatus 
                             WHERE facStatus_userId = :userId 
                               AND DATE(facStatus_dateTime) = CURDATE()
                               AND facStatus_statusMId = 1";
-          $checkStmt = $conn->prepare($checkSql);
-          $checkStmt->execute(['userId' => $userId]);
-          $exists = $checkStmt->fetchColumn();
+            $checkStmt = $conn->prepare($checkSql);
+            $checkStmt->execute(['userId' => $userId]);
+            $exists = $checkStmt->fetchColumn();
 
-          if ($exists == 0) {
-            $insertSql = "INSERT INTO tblfacultystatus 
+            if ($exists == 0) {
+              $insertSql = "INSERT INTO tblfacultystatus 
                                   (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
                                   VALUES (:userId, 1, 'In Office', NOW())";
-            $insertStmt = $conn->prepare($insertSql);
-            $insertStmt->execute(['userId' => $userId]);
+              $insertStmt = $conn->prepare($insertSql);
+              $insertStmt->execute(['userId' => $userId]);
+            }
           }
         }
       }
@@ -138,6 +153,7 @@ class Admin
       return $th;
     }
   }
+
 
   function getTodayFacultySchedules()
   {
