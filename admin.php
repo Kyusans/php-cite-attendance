@@ -193,14 +193,10 @@ class Admin
             $grouped[$userId] = [
               "userId" => $userId,
               "fullName" => $row['fullName'],
-              "latestStatus" => [
-                "facStatus_id" => $row["facStatus_id"],
-                "facStatus_statusMId" => $row["facStatus_statusMId"],
-                "facStatus_note" => $row["facStatus_note"],
-                "facStatus_dateTime" => $row["facStatus_dateTime"]
-              ],
+              "statusMId" => $row["facStatus_statusMId"],
+              "status_note" => $row["facStatus_note"],
               "schedules" => []
-            ];
+        ];
           }
 
           $grouped[$userId]["schedules"][] = [
