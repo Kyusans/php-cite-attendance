@@ -22,10 +22,38 @@ class Admin
     include "connection.php";
     $sql = "SELECT a.*, CONCAT(b.user_lastName, ', ', b.user_firstName, ' ', b.user_middleName) AS fullName 
             FROM tblfacultyschedule a
-            INNER JOIN tbluser b ON b.user_id = a.sched_userId";
+            INNER JOIN tbluser b ON b.user_id = a.sched_userId
+            ORDER BY b.user_id, a.sched_day, a.sched_startTime";
     $stmt = $conn->prepare($sql);
     $stmt->execute();
-    return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
+
+    if ($stmt->rowCount() > 0) {
+      $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+      $grouped = [];
+      foreach ($rows as $row) {
+        $userId = $row['sched_userId'];
+
+        if (!isset($grouped[$userId])) {
+          $grouped[$userId] = [
+            "userId" => $userId,
+            "fullName" => $row['fullName'],
+            "schedules" => []
+          ];
+        }
+
+        $grouped[$userId]["schedules"][] = [
+          "sched_id" => $row["sched_id"],
+          "sched_day" => $row["sched_day"],
+          "sched_startTime" => $row["sched_startTime"],
+          "sched_endTime" => $row["sched_endTime"]
+        ];
+      }
+
+      return array_values($grouped);
+    } else {
+      return [];
+    }
   }
 } //admin 
 
