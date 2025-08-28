@@ -159,8 +159,9 @@ class Admin
   {
 
     include "connection.php";
-
-    $sql = "SELECT a.*, 
+    try {
+      $this->setFacultyInClassStatus();
+      $sql = "SELECT a.*, 
                   CONCAT(b.user_lastName, ', ', b.user_firstName, ' ', b.user_middleName) AS fullName,
                   s.facStatus_id, s.facStatus_statusMId, s.facStatus_note, s.facStatus_dateTime
             FROM tblfacultyschedule a
@@ -178,41 +179,44 @@ class Admin
             WHERE a.sched_day = DAYNAME(CURDATE())
             ORDER BY b.user_id, a.sched_startTime";
 
-    $stmt = $conn->prepare($sql);
-    $stmt->execute();
+      $stmt = $conn->prepare($sql);
+      $stmt->execute();
 
-    if ($stmt->rowCount() > 0) {
-      $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+      if ($stmt->rowCount() > 0) {
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-      $grouped = [];
-      foreach ($rows as $row) {
-        $userId = $row['sched_userId'];
+        $grouped = [];
+        foreach ($rows as $row) {
+          $userId = $row['sched_userId'];
 
-        if (!isset($grouped[$userId])) {
-          $grouped[$userId] = [
-            "userId" => $userId,
-            "fullName" => $row['fullName'],
-            "latestStatus" => [
-              "facStatus_id" => $row["facStatus_id"],
-              "facStatus_statusMId" => $row["facStatus_statusMId"],
-              "facStatus_note" => $row["facStatus_note"],
-              "facStatus_dateTime" => $row["facStatus_dateTime"]
-            ],
-            "schedules" => []
+          if (!isset($grouped[$userId])) {
+            $grouped[$userId] = [
+              "userId" => $userId,
+              "fullName" => $row['fullName'],
+              "latestStatus" => [
+                "facStatus_id" => $row["facStatus_id"],
+                "facStatus_statusMId" => $row["facStatus_statusMId"],
+                "facStatus_note" => $row["facStatus_note"],
+                "facStatus_dateTime" => $row["facStatus_dateTime"]
+              ],
+              "schedules" => []
+            ];
+          }
+
+          $grouped[$userId]["schedules"][] = [
+            "sched_id" => $row["sched_id"],
+            "sched_day" => $row["sched_day"],
+            "sched_startTime" => $row["sched_startTime"],
+            "sched_endTime" => $row["sched_endTime"]
           ];
         }
 
-        $grouped[$userId]["schedules"][] = [
-          "sched_id" => $row["sched_id"],
-          "sched_day" => $row["sched_day"],
-          "sched_startTime" => $row["sched_startTime"],
-          "sched_endTime" => $row["sched_endTime"]
-        ];
+        return array_values($grouped);
+      } else {
+        return [];
       }
-
-      return array_values($grouped);
-    } else {
-      return [];
+    } catch (\Throwable $th) {
+      return 0;
     }
   }
 } //admin 
