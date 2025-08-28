@@ -20,10 +20,23 @@ class Admin
   function getAllFacultySchedules()
   {
     include "connection.php";
-    $sql = "SELECT a.*, CONCAT(b.user_lastName, ', ', b.user_firstName, ' ', b.user_middleName) AS fullName 
-            FROM tblfacultyschedule a
-            INNER JOIN tbluser b ON b.user_id = a.sched_userId
-            ORDER BY b.user_id, a.sched_day, a.sched_startTime";
+
+    $sql = "SELECT a.*, CONCAT(b.user_lastName, ', ', b.user_firstName, ' ', b.user_middleName) AS fullName,
+            s.facStatus_id, s.facStatus_statusMId, s.facStatus_note, s.facStatus_dateTime
+        FROM tblfacultyschedule a
+        INNER JOIN tbluser b ON b.user_id = a.sched_userId
+        LEFT JOIN (
+            SELECT x.facStatus_userId, x.facStatus_id, x.facStatus_statusMId, x.facStatus_note, x.facStatus_dateTime
+            FROM tblfacultystatus x
+            INNER JOIN (
+                SELECT facStatus_userId, MAX(facStatus_dateTime) AS latestStatusTime
+                FROM tblfacultystatus
+                GROUP BY facStatus_userId
+            ) y ON x.facStatus_userId = y.facStatus_userId AND x.facStatus_dateTime = y.latestStatusTime
+        ) s ON s.facStatus_userId = a.sched_userId
+        ORDER BY b.user_id, a.sched_day, a.sched_startTime
+    ";
+
     $stmt = $conn->prepare($sql);
     $stmt->execute();
 
@@ -38,6 +51,12 @@ class Admin
           $grouped[$userId] = [
             "userId" => $userId,
             "fullName" => $row['fullName'],
+            "latestStatus" => [
+              "facStatus_id" => $row["facStatus_id"],
+              "facStatus_statusMId" => $row["facStatus_statusMId"],
+              "facStatus_note" => $row["facStatus_note"],
+              "facStatus_dateTime" => $row["facStatus_dateTime"]
+            ],
             "schedules" => []
           ];
         }
@@ -55,6 +74,7 @@ class Admin
       return [];
     }
   }
+
 
   function setFacultyInClassStatus()
   {
@@ -94,8 +114,7 @@ class Admin
             $insertStmt = $conn->prepare($insertSql);
             $insertStmt->execute(['userId' => $userId]);
           }
-        }
-        else {
+        } else {
           $checkSql = "SELECT COUNT(*) FROM tblfacultystatus 
                             WHERE facStatus_userId = :userId 
                               AND DATE(facStatus_dateTime) = CURDATE()
@@ -117,6 +136,67 @@ class Admin
       return 1;
     } catch (\Throwable $th) {
       return $th;
+    }
+  }
+
+  function getTodayFacultySchedules()
+  {
+
+    include "connection.php";
+
+    $sql = "SELECT a.*, 
+                  CONCAT(b.user_lastName, ', ', b.user_firstName, ' ', b.user_middleName) AS fullName,
+                  s.facStatus_id, s.facStatus_statusMId, s.facStatus_note, s.facStatus_dateTime
+            FROM tblfacultyschedule a
+            INNER JOIN tbluser b ON b.user_id = a.sched_userId
+            LEFT JOIN (
+                SELECT x.facStatus_userId, x.facStatus_id, x.facStatus_statusMId, x.facStatus_note, x.facStatus_dateTime
+                FROM tblfacultystatus x
+                INNER JOIN (
+                    SELECT facStatus_userId, MAX(facStatus_dateTime) AS latestStatusTime
+                    FROM tblfacultystatus
+                    GROUP BY facStatus_userId
+                ) y ON x.facStatus_userId = y.facStatus_userId 
+                  AND x.facStatus_dateTime = y.latestStatusTime
+            ) s ON s.facStatus_userId = a.sched_userId
+            WHERE a.sched_day = DAYNAME(CURDATE())
+            ORDER BY b.user_id, a.sched_startTime";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->execute();
+
+    if ($stmt->rowCount() > 0) {
+      $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+      $grouped = [];
+      foreach ($rows as $row) {
+        $userId = $row['sched_userId'];
+
+        if (!isset($grouped[$userId])) {
+          $grouped[$userId] = [
+            "userId" => $userId,
+            "fullName" => $row['fullName'],
+            "latestStatus" => [
+              "facStatus_id" => $row["facStatus_id"],
+              "facStatus_statusMId" => $row["facStatus_statusMId"],
+              "facStatus_note" => $row["facStatus_note"],
+              "facStatus_dateTime" => $row["facStatus_dateTime"]
+            ],
+            "schedules" => []
+          ];
+        }
+
+        $grouped[$userId]["schedules"][] = [
+          "sched_id" => $row["sched_id"],
+          "sched_day" => $row["sched_day"],
+          "sched_startTime" => $row["sched_startTime"],
+          "sched_endTime" => $row["sched_endTime"]
+        ];
+      }
+
+      return array_values($grouped);
+    } else {
+      return [];
     }
   }
 } //admin 
@@ -146,6 +226,9 @@ switch ($operation) {
     break;
   case "setFacultyInClassStatus":
     echo $admin->setFacultyInClassStatus();
+    break;
+  case "getTodayFacultySchedules":
+    echo json_encode($admin->getTodayFacultySchedules());
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
