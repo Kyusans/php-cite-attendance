@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Manila');
 include "headers.php";
 
 class Admin
@@ -82,7 +83,6 @@ class Admin
     include "connection.php";
 
     try {
-      date_default_timezone_set('Asia/Manila');
       $today = date("l");
       $currentTime = date("H:i:s");
       // echo "currentTime: $currentTime";
@@ -103,7 +103,7 @@ class Admin
       }
 
       foreach ($groupedSchedules as $userId => $facultySchedules) {
-        $newStatus = 1; 
+        $newStatus = 1;
         $newNote = 'In Office';
 
         $isInClass = false;
@@ -112,7 +112,7 @@ class Admin
           $end = $sched['sched_endTime'];
           if ($currentTime >= $start && $currentTime <= $end) {
             $isInClass = true;
-            break; 
+            break;
           }
         }
 
@@ -275,7 +275,8 @@ class Admin
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
 
-  function getFacultyStatus($json){
+  function getFacultyStatus($json)
+  {
     // { "userId": 2 }
     include "connection.php";
     $data = json_decode($json, true);
@@ -287,6 +288,18 @@ class Admin
     return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
   }
 
+  function changeFacultyStatus($json)
+  {
+    include "connection.php";
+    $data = json_decode($json, true);
+    $sql = "INSERT INTO tblfacultystatus (facStatus_userId, facStatus_note, facStatus_statusMId, facStatus_dateTime) VALUES (:userId, :notes, :status, NOW())";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":userId", $data["userId"]);
+    $stmt->bindParam(":notes", $data["notes"]);
+    $stmt->bindParam(":status", $data["status"]);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? 1 : 0;
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -326,6 +339,9 @@ switch ($operation) {
     break;
   case "getFacultyStatus":
     echo json_encode($admin->getFacultyStatus($json));
+    break;
+  case "changeFacultyStatus":
+    echo $admin->changeFacultyStatus($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
