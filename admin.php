@@ -82,72 +82,71 @@ class Admin
     include "connection.php";
 
     try {
-      // Get today's day name (e.g., "Wednesday")
+      date_default_timezone_set('Asia/Manila');
       $today = date("l");
-
-      // Get current time
       $currentTime = date("H:i:s");
+      // echo "currentTime: $currentTime";
+      // die();
 
-      // Fetch all schedules for today
-      $sql = "SELECT * FROM tblfacultyschedule WHERE sched_day = :today";
+      $sql = "SELECT * FROM tblfacultyschedule WHERE sched_day = :today ORDER BY sched_userId";
       $stmt = $conn->prepare($sql);
       $stmt->execute(['today' => $today]);
       $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+      $groupedSchedules = [];
       foreach ($schedules as $sched) {
-        $start  = $sched['sched_startTime'];
-        $end    = $sched['sched_endTime'];
         $userId = $sched['sched_userId'];
+        if (!isset($groupedSchedules[$userId])) {
+          $groupedSchedules[$userId] = [];
+        }
+        $groupedSchedules[$userId][] = $sched;
+      }
 
-        // ✅ Get the latest status of this faculty for today
+      foreach ($groupedSchedules as $userId => $facultySchedules) {
+        $newStatus = 1; 
+        $newNote = 'In Office';
+
+        $isInClass = false;
+        foreach ($facultySchedules as $sched) {
+          $start = $sched['sched_startTime'];
+          $end = $sched['sched_endTime'];
+          if ($currentTime >= $start && $currentTime <= $end) {
+            $isInClass = true;
+            break; 
+          }
+        }
+
+        if ($isInClass) {
+          $newStatus = 3;
+          $newNote = 'In class';
+        }
+
         $latestSql = "SELECT facStatus_statusMId 
-                      FROM tblfacultystatus 
+                    FROM tblfacultystatus 
                     WHERE facStatus_userId = :userId 
                       AND DATE(facStatus_dateTime) = CURDATE()
-                  ORDER BY facStatus_dateTime DESC 
+                    ORDER BY facStatus_dateTime DESC 
                     LIMIT 1";
         $latestStmt = $conn->prepare($latestSql);
         $latestStmt->execute(['userId' => $userId]);
         $latestStatus = $latestStmt->fetchColumn();
 
-        // If current time is within the faculty's schedule → IN CLASS
-        if ($currentTime >= $start && $currentTime <= $end) {
-          $checkSql = "SELECT COUNT(*) FROM tblfacultystatus 
-                          WHERE facStatus_userId = :userId 
-                            AND DATE(facStatus_dateTime) = CURDATE()
-                            AND facStatus_statusMId = 3";
-          $checkStmt = $conn->prepare($checkSql);
-          $checkStmt->execute(['userId' => $userId]);
-          $exists = $checkStmt->fetchColumn();
+        if ($latestStatus == 2 && $newStatus != 2) {
+          continue;
+        }
 
-          if ($exists == 0) {
-            $insertSql = "INSERT INTO tblfacultystatus 
-                                (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
-                                VALUES (:userId, 3, 'In class', NOW())";
-            $insertStmt = $conn->prepare($insertSql);
-            $insertStmt->execute(['userId' => $userId]);
-          }
-        } else {
-          if ($latestStatus != 2) {
-            $checkSql = "SELECT COUNT(*) FROM tblfacultystatus 
-                            WHERE facStatus_userId = :userId 
-                              AND DATE(facStatus_dateTime) = CURDATE()
-                              AND facStatus_statusMId = 1";
-            $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->execute(['userId' => $userId]);
-            $exists = $checkStmt->fetchColumn();
-
-            if ($exists == 0) {
-              $insertSql = "INSERT INTO tblfacultystatus 
-                                  (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
-                                  VALUES (:userId, 1, 'In Office', NOW())";
-              $insertStmt = $conn->prepare($insertSql);
-              $insertStmt->execute(['userId' => $userId]);
-            }
-          }
+        if ($latestStatus != $newStatus) {
+          $insertSql = "INSERT INTO tblfacultystatus 
+                            (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
+                            VALUES (:userId, :statusMId, :note, NOW())";
+          $insertStmt = $conn->prepare($insertSql);
+          $insertStmt->execute([
+            'userId' => $userId,
+            'statusMId' => $newStatus,
+            'note' => $newNote
+          ]);
         }
       }
-
       return 1;
     } catch (\Throwable $th) {
       return $th;
@@ -236,6 +235,45 @@ class Admin
     $stmt->execute();
     return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
   }
+
+  function addSchedule($json)
+  {
+    include "connection.php";
+    $data = json_decode($json, true);
+
+    $checkSql = "SELECT * 
+                FROM tblfacultyschedule 
+                WHERE sched_userId = :userId
+                  AND sched_day = :day
+                  AND (
+                      (:startTime BETWEEN sched_startTime AND sched_endTime)
+                      OR (:endTime BETWEEN sched_startTime AND sched_endTime)
+                      OR (sched_startTime BETWEEN :startTime AND :endTime)
+                      OR (sched_endTime BETWEEN :startTime AND :endTime)
+                  )";
+
+    $checkStmt = $conn->prepare($checkSql);
+    $checkStmt->bindParam(":userId", $data["userId"]);
+    $checkStmt->bindParam(":day", $data["day"]);
+    $checkStmt->bindParam(":startTime", $data["startTime"]);
+    $checkStmt->bindParam(":endTime", $data["endTime"]);
+    $checkStmt->execute();
+
+    if ($checkStmt->rowCount() > 0) {
+      return -1;
+    }
+
+    $sql = "INSERT INTO tblfacultyschedule (sched_day, sched_startTime, sched_endTime, sched_userId) 
+            VALUES (:sched_day, :sched_startTime, :sched_endTime, :sched_userId)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":sched_day", $data["day"]);
+    $stmt->bindParam(":sched_startTime", $data["startTime"]);
+    $stmt->bindParam(":sched_endTime", $data["endTime"]);
+    $stmt->bindParam(":sched_userId", $data["userId"]);
+    $stmt->execute();
+
+    return $stmt->rowCount() > 0 ? 1 : 0;
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -269,6 +307,9 @@ switch ($operation) {
     break;
   case "getFacultySchedule":
     echo json_encode($admin->getFacultySchedule($json));
+    break;
+  case "addSchedule":
+    echo $admin->addSchedule($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
