@@ -196,7 +196,7 @@ class Admin
               "statusMId" => $row["facStatus_statusMId"],
               "status_note" => $row["facStatus_note"],
               "schedules" => []
-        ];
+            ];
           }
 
           $grouped[$userId]["schedules"][] = [
@@ -214,6 +214,23 @@ class Admin
     } catch (\Throwable $th) {
       return 0;
     }
+  }
+
+  function getFacultySchedule($json)
+  {
+    // { "userId": 1 }
+    include "connection.php";
+    $data = json_decode($json);
+    $userId = $data->userId;
+    $sql = "SELECT * FROM tblfacultyschedule WHERE sched_userId = :userId 
+            ORDER BY FIELD(sched_day, 
+                'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'
+            ), sched_startTime";
+
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":userId", $userId);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
   }
 } //admin 
 
@@ -245,6 +262,9 @@ switch ($operation) {
     break;
   case "getTodayFacultySchedules":
     echo json_encode($admin->getTodayFacultySchedules());
+    break;
+  case "getFacultySchedule":
+    echo json_encode($admin->getFacultySchedule($json));
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
