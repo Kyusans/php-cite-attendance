@@ -220,13 +220,17 @@ class Admin
   {
     // { "userId": 1 }
     include "connection.php";
-    $data = json_decode($json);
-    $userId = $data->userId;
-    $sql = "SELECT * FROM tblfacultyschedule WHERE sched_userId = :userId 
-            ORDER BY FIELD(sched_day, 
-                'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'
-            ), sched_startTime";
-
+    $data = json_decode($json, true);
+    $userId = $data["userId"];
+    $sql = "SELECT sched_id, sched_day,
+            DATE_FORMAT(sched_startTime, '%l:%i %p') AS sched_startTime,
+            DATE_FORMAT(sched_endTime, '%l:%i %p') AS sched_endTime,
+            sched_userId
+        FROM tblfacultyschedule 
+        WHERE sched_userId = :userId
+        ORDER BY FIELD(sched_day, 
+            'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'
+        ), sched_startTime";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(":userId", $userId);
     $stmt->execute();
