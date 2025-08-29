@@ -274,6 +274,19 @@ class Admin
 
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
+
+  function getFacultyStatus($json){
+    // { "userId": 2 }
+    include "connection.php";
+    $data = json_decode($json, true);
+    $userId = $data["userId"];
+    $sql = "SELECT * FROM tblfacultystatus WHERE facStatus_userId = :userId ORDER BY facStatus_dateTime DESC LIMIT 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":userId", $userId);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
+  }
+
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -310,6 +323,9 @@ switch ($operation) {
     break;
   case "addSchedule":
     echo $admin->addSchedule($json);
+    break;
+  case "getFacultyStatus":
+    echo json_encode($admin->getFacultyStatus($json));
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
