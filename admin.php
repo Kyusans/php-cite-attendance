@@ -233,7 +233,10 @@ class Admin
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(":userId", $userId);
     $stmt->execute();
-    return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
+    $schedules = $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
+    $facultyStatus = $this->getFacultyStatus($json);
+    $returnValue = ["schedules" => $schedules, "status" => $facultyStatus];
+    return $returnValue;
   }
 
   function addSchedule($json)
@@ -300,6 +303,25 @@ class Admin
     $stmt->execute();
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
+
+  function addFaculty($json)
+  {
+    // { "firstName": "John", "middleName": "Doe", "lastName": "Doe", "schoolId": 1, "password": "password", "email": "email", "level": 2 }
+    include "connection.php";
+    $data = json_decode($json, true);
+    $sql = "INSERT INTO tbluser (user_firstName, user_middleName, user_lastName, user_schoolId, user_password, user_email, user_level)
+            VALUES (:firstName, :middleName, :lastName, :schoolId, :password, :email, :level)";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":firstName", $data["firstName"]);
+    $stmt->bindParam(":middleName", $data["middleName"]);
+    $stmt->bindParam(":lastName", $data["lastName"]);
+    $stmt->bindParam(":schoolId", $data["schoolId"]);
+    $stmt->bindParam(":password", $data["password"]);
+    $stmt->bindParam(":email", $data["email"]);
+    $stmt->bindParam(":level", $data["level"]);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? 1 : 0;
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -342,6 +364,9 @@ switch ($operation) {
     break;
   case "changeFacultyStatus":
     echo $admin->changeFacultyStatus($json);
+    break;
+  case "addFaculty":
+    echo $admin->addFaculty($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
