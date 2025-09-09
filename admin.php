@@ -309,6 +309,13 @@ class Admin
     // { "firstName": "John", "middleName": "Doe", "lastName": "Doe", "schoolId": 1, "password": "password", "email": "email", "level": 2 }
     include "connection.php";
     $data = json_decode($json, true);
+
+    if (recordExists($data["email"], "tbluser", "user_email")) {
+      return -1;
+    }else if (recordExists($data["schoolId"], "tbluser", "user_schoolId")) {
+      return -2;
+    }
+
     $sql = "INSERT INTO tbluser (user_firstName, user_middleName, user_lastName, user_schoolId, user_password, user_email, user_level)
             VALUES (:firstName, :middleName, :lastName, :schoolId, :password, :email, :level)";
     $stmt = $conn->prepare($sql);
