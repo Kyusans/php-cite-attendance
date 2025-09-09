@@ -310,14 +310,30 @@ class Admin
     include "connection.php";
     $data = json_decode($json, true);
 
+    $returnValueImage = uploadImage();
+
+    switch ($returnValueImage) {
+      case 2:
+        // You cannot Upload files of this type!
+        return 2;
+      case 3:
+        // There was an error uploading your file!
+        return 3;
+      case 4:
+        // Your file is too big (25mb maximum)
+        return 4;
+      default:
+        break;
+    }
+
     if (recordExists($data["email"], "tbluser", "user_email")) {
       return -1;
-    }else if (recordExists($data["schoolId"], "tbluser", "user_schoolId")) {
+    } else if (recordExists($data["schoolId"], "tbluser", "user_schoolId")) {
       return -2;
     }
 
-    $sql = "INSERT INTO tbluser (user_firstName, user_middleName, user_lastName, user_schoolId, user_password, user_email, user_level)
-            VALUES (:firstName, :middleName, :lastName, :schoolId, :password, :email, :level)";
+    $sql = "INSERT INTO tbluser (user_firstName, user_middleName, user_lastName, user_schoolId, user_password, user_email, user_level, user_image)
+            VALUES (:firstName, :middleName, :lastName, :schoolId, :password, :email, 2, :image)";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(":firstName", $data["firstName"]);
     $stmt->bindParam(":middleName", $data["middleName"]);
@@ -325,7 +341,8 @@ class Admin
     $stmt->bindParam(":schoolId", $data["schoolId"]);
     $stmt->bindParam(":password", $data["password"]);
     $stmt->bindParam(":email", $data["email"]);
-    $stmt->bindParam(":level", $data["level"]);
+    $stmt->bindParam(":image", $returnValueImage);
+
     $stmt->execute();
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
@@ -340,6 +357,59 @@ function recordExists($value, $table, $column)
   $stmt->execute();
   $count = $stmt->fetchColumn();
   return $count > 0;
+}
+
+function uploadImage()
+{
+  if (isset($_FILES["file"])) {
+    $file = $_FILES['file'];
+    // print_r($file);
+    $fileName = $_FILES['file']['name'];
+    $fileTmpName = $_FILES['file']['tmp_name'];
+    $fileSize = $_FILES['file']['size'];
+    $fileError = $_FILES['file']['error'];
+    // $fileType = $_FILES['file']['type'];
+
+    $fileExt = explode(".", $fileName);
+    $fileActualExt = strtolower(end($fileExt));
+
+    $allowed = ["jpg", "jpeg", "png"];
+
+    if (in_array($fileActualExt, $allowed)) {
+      if ($fileError === 0) {
+        if ($fileSize < 25000000) {
+          $fileNameNew = uniqid("", true) . "." . $fileActualExt;
+          $fileDestination =  'images/' . $fileNameNew;
+          move_uploaded_file($fileTmpName, $fileDestination);
+          return $fileNameNew;
+        } else {
+          return 4;
+        }
+      } else {
+        return 3;
+      }
+    } else {
+      return 2;
+    }
+  } else {
+    return "";
+  }
+
+  // $returnValueImage = uploadImage();
+
+  // switch ($returnValueImage) {
+  //     case 2:
+  //         // You cannot Upload files of this type!
+  //         return 2;
+  //     case 3:
+  //         // There was an error uploading your file!
+  //         return 3;
+  //     case 4:
+  //         // Your file is too big (25mb maximum)
+  //         return 4;
+  //     default:
+  //         break;
+  // }
 }
 
 $json = isset($_POST["json"]) ? $_POST["json"] : "0";
