@@ -332,8 +332,8 @@ class Admin
       $returnValueImage = "emptyImage.jpg";
     }
 
-    $sql = "INSERT INTO tbluser (user_firstName, user_middleName, user_lastName, user_schoolId, user_password, user_email, user_level, user_image)
-            VALUES (:firstName, :middleName, :lastName, :schoolId, :password, :email, 2, :image)";
+    $sql = "INSERT INTO tbluser (user_firstName, user_middleName, user_lastName, user_schoolId, user_password, user_email, user_level, user_image, user_isActive)
+            VALUES (:firstName, :middleName, :lastName, :schoolId, :password, :email, 2, :image, 1)";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(":firstName", $data["firstName"]);
     $stmt->bindParam(":middleName", $data["middleName"]);
@@ -346,6 +346,15 @@ class Admin
     $stmt->execute();
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
+
+  function getActiveFaculties(){
+    include "connection.php";
+    $sql = "SELECT * FROM tbluser WHERE user_level = 2 AND user_isActive = 1";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
+  }
+
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -444,6 +453,9 @@ switch ($operation) {
     break;
   case "addFaculty":
     echo $admin->addFaculty($json);
+    break;
+  case "getActiveFaculties":
+    echo json_encode($admin->getActiveFaculties());
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
