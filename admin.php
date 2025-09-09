@@ -306,7 +306,6 @@ class Admin
 
   function addFaculty($json)
   {
-    // { "firstName": "John", "middleName": "Doe", "lastName": "Doe", "schoolId": 1, "password": "password", "email": "email", "level": 2 }
     include "connection.php";
     $data = json_decode($json, true);
 
@@ -314,14 +313,11 @@ class Admin
 
     switch ($returnValueImage) {
       case 2:
-        // You cannot Upload files of this type!
-        return 2;
+        return 2; // invalid type
       case 3:
-        // There was an error uploading your file!
-        return 3;
+        return 3; // upload error
       case 4:
-        // Your file is too big (25mb maximum)
-        return 4;
+        return 4; // too big
       default:
         break;
     }
@@ -330,6 +326,10 @@ class Admin
       return -1;
     } else if (recordExists($data["schoolId"], "tbluser", "user_schoolId")) {
       return -2;
+    }
+
+    if ($returnValueImage === "" || $returnValueImage === null) {
+      $returnValueImage = "emptyImage.jpg";
     }
 
     $sql = "INSERT INTO tbluser (user_firstName, user_middleName, user_lastName, user_schoolId, user_password, user_email, user_level, user_image)
