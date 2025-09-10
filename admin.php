@@ -85,13 +85,12 @@ class Admin
 
     $nowTs = time();
     $today = date('l'); // e.g. Wednesday
-    $todayDate = date('Y-m-d');
 
-    // get all schedules for today
+    // Get today’s schedules
     $sql = "SELECT a.sched_userId, a.sched_startTime, a.sched_endTime
-        FROM tblfacultyschedule a
-        INNER JOIN tbluser b ON b.user_id = a.sched_userId
-        WHERE a.sched_day = :today";
+            FROM tblfacultyschedule a
+            INNER JOIN tbluser b ON b.user_id = a.sched_userId
+            WHERE a.sched_day = :today";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':today', $today);
     $stmt->execute();
@@ -102,26 +101,22 @@ class Admin
       $startTs = strtotime($sched['sched_startTime']);
       $endTs   = strtotime($sched['sched_endTime']);
 
-      // 1️⃣ Skip if their latest status today = 2 (Out)
-      $checkSql = "
-        SELECT facStatus_statusMId 
-        FROM tblfacultystatus 
-        WHERE facStatus_userId = :userId 
-          AND DATE(facStatus_dateTime) = :todayDate
-        ORDER BY facStatus_dateTime DESC 
-        LIMIT 1";
-      $checkStmt = $conn->prepare($checkSql);
-      $checkStmt->bindParam(':userId', $userId);
-      $checkStmt->bindParam(':todayDate', $todayDate);
-      $checkStmt->execute();
-      $latestStatus = $checkStmt->fetch(PDO::FETCH_ASSOC);
+      // check the latest status row for this user today
+      $sqlCheck = "SELECT facStatus_id, facStatus_statusMId
+                       FROM tblfacultystatus
+                      WHERE facStatus_userId = :userId
+                        AND DATE(facStatus_dateTime) = CURDATE()
+                      ORDER BY facStatus_dateTime DESC LIMIT 1";
+      $stmtCheck = $conn->prepare($sqlCheck);
+      $stmtCheck->execute([':userId' => $userId]);
+      $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
-      if ($latestStatus && (int)$latestStatus['facStatus_statusMId'] === 2) {
-        // skip to next user — do not auto-update
+      // ⛔ Skip if the current status is 2 (Out)
+      if ($existing && (int)$existing['facStatus_statusMId'] === 2) {
         continue;
       }
 
-      // 2️⃣ Determine status automatically
+      // compute status
       if ($nowTs >= $startTs && $nowTs <= $endTs) {
         $statusMId = 3; // In Class
         $statusNote = "In Class";
@@ -130,37 +125,34 @@ class Admin
         $statusNote = "In Office";
       }
 
-      // 3️⃣ Update today’s row if it’s 1 or 3, otherwise insert new
-      $updateSql = "
-        UPDATE tblfacultystatus 
-        SET facStatus_statusMId = :statusMId, 
-            facStatus_note = :note, 
-            facStatus_dateTime = NOW()
-        WHERE facStatus_userId = :userId 
-          AND DATE(facStatus_dateTime) = :todayDate
-          AND facStatus_statusMId IN (1,3)";
-      $updateStmt = $conn->prepare($updateSql);
-      $updateStmt->bindParam(':statusMId', $statusMId);
-      $updateStmt->bindParam(':note', $statusNote);
-      $updateStmt->bindParam(':userId', $userId);
-      $updateStmt->bindParam(':todayDate', $todayDate);
-      $updateStmt->execute();
-
-      if ($updateStmt->rowCount() === 0) {
-        // Insert new record if none exists today
-        $insertSql = "
-            INSERT INTO tblfacultystatus 
-            (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime)
-            VALUES (:userId, :statusMId, :note, NOW())";
-        $insertStmt = $conn->prepare($insertSql);
-        $insertStmt->bindParam(':userId', $userId);
-        $insertStmt->bindParam(':statusMId', $statusMId);
-        $insertStmt->bindParam(':note', $statusNote);
-        $insertStmt->execute();
+      if ($existing) {
+        // Update existing row for today
+        $sql2 = "UPDATE tblfacultystatus 
+                        SET facStatus_statusMId = :statusMId,
+                            facStatus_note = :note,
+                            facStatus_dateTime = NOW()
+                      WHERE facStatus_id = :id";
+        $stmt2 = $conn->prepare($sql2);
+        $stmt2->execute([
+          ':statusMId' => $statusMId,
+          ':note' => $statusNote,
+          ':id' => $existing['facStatus_id']
+        ]);
+      } else {
+        // Insert new row for today
+        $sql2 = "INSERT INTO tblfacultystatus 
+                        (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime)
+                    VALUES (:userId, :statusMId, :note, NOW())";
+        $stmt2 = $conn->prepare($sql2);
+        $stmt2->execute([
+          ':userId' => $userId,
+          ':statusMId' => $statusMId,
+          ':note' => $statusNote
+        ]);
       }
     }
-
   }
+
 
 
 
@@ -524,9 +516,6 @@ switch ($operation) {
     break;
   case "getFacultyProfile":
     echo json_encode($admin->getFacultyProfile($json));
-    break;
-  case "setFacultyInClassStatus":
-    echo $admin->setFacultyInClassStatus($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
