@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 28, 2025 at 05:12 PM
+-- Generation Time: Sep 11, 2025 at 01:55 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -54,15 +54,13 @@ CREATE TABLE `tblfacultyschedule` (
 INSERT INTO `tblfacultyschedule` (`sched_id`, `sched_day`, `sched_startTime`, `sched_endTime`, `sched_userId`) VALUES
 (3, 'Monday', '08:00:00', '10:00:00', 2),
 (4, 'Wednesday', '13:00:00', '15:00:00', 2),
-(5, 'Friday', '10:00:00', '12:00:00', 2),
+(5, 'Friday', '11:00:00', '14:00:00', 2),
 (6, 'Tuesday', '09:00:00', '11:00:00', 3),
 (7, 'Thursday', '14:00:00', '16:00:00', 3),
 (8, 'Friday', '19:00:00', '21:00:00', 3),
 (9, 'Monday', '10:00:00', '12:00:00', 4),
 (10, 'Wednesday', '15:00:00', '17:00:00', 4),
 (11, 'Friday', '08:00:00', '10:00:00', 4),
-(12, 'Tuesday', '08:00:00', '10:00:00', 5),
-(13, 'Wednesday', '15:00:00', '17:00:00', 5),
 (14, 'Thursday', '09:00:00', '11:00:00', 5),
 (15, 'Monday', '13:00:00', '15:00:00', 6),
 (16, 'Wednesday', '09:00:00', '11:00:00', 6),
@@ -84,7 +82,8 @@ INSERT INTO `tblfacultyschedule` (`sched_id`, `sched_day`, `sched_startTime`, `s
 (32, 'Friday', '11:00:00', '13:00:00', 11),
 (33, 'Monday', '15:00:00', '17:00:00', 12),
 (34, 'Wednesday', '10:00:00', '12:00:00', 12),
-(35, 'Thursday', '08:00:00', '10:00:00', 12);
+(35, 'Thursday', '08:00:00', '10:00:00', 12),
+(36, 'Monday', '09:00:00', '11:00:00', 3);
 
 -- --------------------------------------------------------
 
@@ -105,18 +104,10 @@ CREATE TABLE `tblfacultystatus` (
 --
 
 INSERT INTO `tblfacultystatus` (`facStatus_id`, `facStatus_userId`, `facStatus_statusMId`, `facStatus_note`, `facStatus_dateTime`) VALUES
-(8, 3, 1, 'In Office', '2025-08-28 16:39:52'),
-(9, 5, 3, 'In class', '2025-08-28 16:39:52'),
-(10, 7, 1, 'In Office', '2025-08-28 16:39:52'),
-(11, 8, 2, 'Nag meeting sa Del monte', '2025-08-28 16:39:52'),
-(12, 9, 3, 'In class', '2025-08-28 16:39:52'),
-(13, 11, 1, 'In Office', '2025-08-28 16:39:52'),
-(14, 12, 1, 'In Office', '2025-08-28 16:39:52'),
-(15, 5, 1, 'In Office', '2025-08-28 17:00:18'),
-(16, 3, 3, 'In class', '2025-08-28 21:01:28'),
-(17, 8, 3, 'In class', '2025-08-28 21:01:28'),
-(18, 9, 1, 'In Office', '2025-08-28 21:01:28'),
-(19, 8, 1, 'In Office', '2025-08-28 23:00:16');
+(528, 4, 1, 'In Office', '2025-09-10 23:44:45'),
+(529, 5, 1, 'In Office', '2025-09-10 23:40:27'),
+(530, 6, 1, 'In Office', '2025-09-10 23:44:45'),
+(531, 8, 1, 'In Office', '2025-09-10 23:44:45');
 
 -- --------------------------------------------------------
 
@@ -147,30 +138,47 @@ INSERT INTO `tblfacultystatusmaster` (`facStatMaster_id`, `facStatMaster_name`) 
 CREATE TABLE `tbluser` (
   `user_id` int(11) NOT NULL,
   `user_firstName` varchar(100) NOT NULL,
-  `user_middleName` varchar(100) NOT NULL,
+  `user_middleName` varchar(100) DEFAULT NULL,
   `user_lastName` varchar(100) NOT NULL,
   `user_schoolId` varchar(100) NOT NULL,
   `user_password` varchar(100) NOT NULL,
-  `user_email` varchar(100) NOT NULL
+  `user_email` varchar(100) NOT NULL,
+  `user_image` text NOT NULL,
+  `user_level` int(11) NOT NULL,
+  `user_isActive` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `tbluser`
 --
 
-INSERT INTO `tbluser` (`user_id`, `user_firstName`, `user_middleName`, `user_lastName`, `user_schoolId`, `user_password`, `user_email`) VALUES
-(1, 'Admin', 'Nimda', 'Imdan', '02-3456-09968', 'admin', 'admin@gmail.com'),
-(2, 'Joe', 'Joe', 'Mama', '02-97655-4553', 'joe', 'joe@gmail.com'),
-(3, 'Jane', 'Marie', 'Doe', '03-12345-6789', 'jane123', 'jane.doe@gmail.com'),
-(4, 'John', 'Michael', 'Smith', '04-98765-4321', 'john123', 'john.smith@gmail.com'),
-(5, 'Alice', 'Rose', 'Johnson', '05-24680-1357', 'alice123', 'alice.johnson@gmail.com'),
-(6, 'Bob', 'Edward', 'Brown', '06-11223-4455', 'bob123', 'bob.brown@gmail.com'),
-(7, 'Charlie', 'David', 'Williams', '07-22334-5566', 'charlie123', 'charlie.williams@gmail.com'),
-(8, 'Diana', 'Grace', 'Taylor', '08-33445-6677', 'diana123', 'diana.taylor@gmail.com'),
-(9, 'Ethan', 'James', 'Anderson', '09-44556-7788', 'ethan123', 'ethan.anderson@gmail.com'),
-(10, 'Fiona', 'Claire', 'Thomas', '10-55667-8899', 'fiona123', 'fiona.thomas@gmail.com'),
-(11, 'George', 'Henry', 'Martinez', '11-66778-9900', 'george123', 'george.martinez@gmail.com'),
-(12, 'Hannah', 'Louise', 'Garcia', '12-77889-0011', 'hannah123', 'hannah.garcia@gmail.com');
+INSERT INTO `tbluser` (`user_id`, `user_firstName`, `user_middleName`, `user_lastName`, `user_schoolId`, `user_password`, `user_email`, `user_image`, `user_level`, `user_isActive`) VALUES
+(1, 'admin', 'admin', 'admin', 'admin', 'admin', 'admin@gmail.com', 'emptyImage.jpg', 1, 1),
+(3, 'Bea', 'Macalua', 'Lachica', '12345678', 'bea', 'bea@gmail.com', 'emptyImage.jpg', 2, 1),
+(4, 'kyuchan', 'Sabido', 'joee', '123456781', 'admin', 'kyuchans@gmail.com', 'emptyImage.jpg', 2, 1),
+(5, 'Joe', 'Joe', 'Mama', '1234567811', 'admin', 'admin12@gmail.com', 'emptyImage.jpg', 2, 1),
+(6, 'Trump', '12', 'Kun', '121312', 'admin12', 'admin1212@gmail.com', 'emptyImage.jpg', 2, 1),
+(7, 'Obama', '12', 'Sama', '125432', 'admin12', 'ad1231min@gmail.com', 'emptyImage.jpg', 2, 1),
+(8, 'Duterte', 'sabido', 'Kyun', '1234567812', 'admin', 'mel@gmail.com', 'emptyImage.jpg', 2, 1);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `tbluserlevel`
+--
+
+CREATE TABLE `tbluserlevel` (
+  `userLevel_id` int(11) NOT NULL,
+  `userLevel_name` varchar(20) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `tbluserlevel`
+--
+
+INSERT INTO `tbluserlevel` (`userLevel_id`, `userLevel_name`) VALUES
+(1, 'Admin'),
+(2, 'Faculty');
 
 --
 -- Indexes for dumped tables
@@ -208,7 +216,14 @@ ALTER TABLE `tblfacultystatusmaster`
 -- Indexes for table `tbluser`
 --
 ALTER TABLE `tbluser`
-  ADD PRIMARY KEY (`user_id`);
+  ADD PRIMARY KEY (`user_id`),
+  ADD KEY `user_level` (`user_level`);
+
+--
+-- Indexes for table `tbluserlevel`
+--
+ALTER TABLE `tbluserlevel`
+  ADD PRIMARY KEY (`userLevel_id`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -224,13 +239,13 @@ ALTER TABLE `tblattendance`
 -- AUTO_INCREMENT for table `tblfacultyschedule`
 --
 ALTER TABLE `tblfacultyschedule`
-  MODIFY `sched_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
+  MODIFY `sched_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=39;
 
 --
 -- AUTO_INCREMENT for table `tblfacultystatus`
 --
 ALTER TABLE `tblfacultystatus`
-  MODIFY `facStatus_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `facStatus_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=532;
 
 --
 -- AUTO_INCREMENT for table `tblfacultystatusmaster`
@@ -242,7 +257,13 @@ ALTER TABLE `tblfacultystatusmaster`
 -- AUTO_INCREMENT for table `tbluser`
 --
 ALTER TABLE `tbluser`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+
+--
+-- AUTO_INCREMENT for table `tbluserlevel`
+--
+ALTER TABLE `tbluserlevel`
+  MODIFY `userLevel_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- Constraints for dumped tables
@@ -266,6 +287,12 @@ ALTER TABLE `tblfacultyschedule`
 ALTER TABLE `tblfacultystatus`
   ADD CONSTRAINT `tblfacultystatus_ibfk_1` FOREIGN KEY (`facStatus_statusMId`) REFERENCES `tblfacultystatusmaster` (`facStatMaster_id`),
   ADD CONSTRAINT `tblfacultystatus_ibfk_2` FOREIGN KEY (`facStatus_userId`) REFERENCES `tbluser` (`user_id`);
+
+--
+-- Constraints for table `tbluser`
+--
+ALTER TABLE `tbluser`
+  ADD CONSTRAINT `tbluser_ibfk_1` FOREIGN KEY (`user_level`) REFERENCES `tbluserlevel` (`userLevel_id`);
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
