@@ -426,11 +426,11 @@ class Admin
 
     // 1️⃣ Check for conflicts except itself
     $checkSql = "SELECT * 
-                 FROM tblfacultyschedule 
-                 WHERE sched_userId = :userId
-                   AND sched_day = :day
-                   AND sched_id <> :schedId
-                   AND ( :startTime < sched_endTime AND :endTime > sched_startTime )";
+                FROM tblfacultyschedule 
+                WHERE sched_userId = :userId
+                  AND sched_day = :day
+                  AND sched_id <> :schedId
+                  AND ( :startTime < sched_endTime AND :endTime > sched_startTime )";
     $checkStmt = $conn->prepare($checkSql);
     $checkStmt->bindParam(":userId", $userId);
     $checkStmt->bindParam(":day", $day);
@@ -458,6 +458,19 @@ class Admin
 
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
+
+  function deleteSchedule($json){
+    // { "sched_id": 1 }
+    include "connection.php";
+    $data = json_decode($json, true);
+    $schedId = $data["sched_id"];
+    $sql = "DELETE FROM tblfacultyschedule WHERE sched_id = :schedId";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":schedId", $schedId);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? 1 : 0;
+  }
+
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -565,6 +578,9 @@ switch ($operation) {
     break;
   case "updateSchedule":
     echo $admin->updateSchedule($json);
+    break;
+  case "deleteSchedule":
+    echo $admin->deleteSchedule($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
