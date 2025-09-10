@@ -81,64 +81,74 @@ class Admin
   function setFacultyInClassStatus()
   {
     include "connection.php";
+    date_default_timezone_set('Asia/Manila');
 
     try {
-      $today = date("l");
-      $currentTime = date("H:i:s");
-      // echo "currentTime: $currentTime";
-      // die();
+      $today = date("l"); // e.g., Wednesday
+      $currentTime = date("H:i:s"); // e.g., 17:00:00
 
+      // Get today’s schedules
       $sql = "SELECT * FROM tblfacultyschedule WHERE sched_day = :today ORDER BY sched_userId";
       $stmt = $conn->prepare($sql);
       $stmt->execute(['today' => $today]);
       $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+      // Group by faculty
       $groupedSchedules = [];
       foreach ($schedules as $sched) {
         $userId = $sched['sched_userId'];
-        if (!isset($groupedSchedules[$userId])) {
-          $groupedSchedules[$userId] = [];
-        }
         $groupedSchedules[$userId][] = $sched;
       }
 
       foreach ($groupedSchedules as $userId => $facultySchedules) {
-        $newStatus = 1;
-        $newNote = 'In Office';
-
         $isInClass = false;
+
         foreach ($facultySchedules as $sched) {
-          $start = $sched['sched_startTime'];
-          $end = $sched['sched_endTime'];
-          if ($currentTime >= $start && $currentTime <= $end) {
+          // Convert everything to timestamps for safe compare
+          $startTS = strtotime($sched['sched_startTime']);
+          $endTS   = strtotime($sched['sched_endTime']);
+          $nowTS   = strtotime($currentTime);
+
+          if ($nowTS >= $startTS && $nowTS <= $endTS) {
             $isInClass = true;
             break;
           }
         }
 
-        if ($isInClass) {
-          $newStatus = 3;
-          $newNote = 'In class';
-        }
+        $newStatus = $isInClass ? 3 : 1;
+        $newNote   = $isInClass ? 'In Class' : 'In Office';
 
-        $latestSql = "SELECT facStatus_statusMId 
-                    FROM tblfacultystatus 
-                    WHERE facStatus_userId = :userId 
-                      AND DATE(facStatus_dateTime) = CURDATE()
-                    ORDER BY facStatus_dateTime DESC 
-                    LIMIT 1";
+        // Get today’s latest status row for this user
+        $latestSql = "SELECT facStatus_id, facStatus_statusMId 
+                          FROM tblfacultystatus 
+                          WHERE facStatus_userId = :userId 
+                            AND DATE(facStatus_dateTime) = CURDATE()
+                          ORDER BY facStatus_dateTime DESC 
+                          LIMIT 1";
         $latestStmt = $conn->prepare($latestSql);
         $latestStmt->execute(['userId' => $userId]);
-        $latestStatus = $latestStmt->fetchColumn();
+        $latestRow = $latestStmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($latestStatus == 2 && $newStatus != 2) {
-          continue;
-        }
-
-        if ($latestStatus != $newStatus) {
+        if ($latestRow) {
+          // If status changed → update existing row
+          if ($latestRow['facStatus_statusMId'] != $newStatus) {
+            $updateSql = "UPDATE tblfacultystatus 
+                                  SET facStatus_statusMId = :statusMId, 
+                                      facStatus_note = :note, 
+                                      facStatus_dateTime = NOW() 
+                                  WHERE facStatus_id = :id";
+            $updateStmt = $conn->prepare($updateSql);
+            $updateStmt->execute([
+              'statusMId' => $newStatus,
+              'note' => $newNote,
+              'id' => $latestRow['facStatus_id']
+            ]);
+          }
+        } else {
+          // No row today → insert new one
           $insertSql = "INSERT INTO tblfacultystatus 
-                            (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
-                            VALUES (:userId, :statusMId, :note, NOW())";
+                              (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
+                              VALUES (:userId, :statusMId, :note, NOW())";
           $insertStmt = $conn->prepare($insertSql);
           $insertStmt->execute([
             'userId' => $userId,
@@ -147,11 +157,14 @@ class Admin
           ]);
         }
       }
+
       return 1;
     } catch (\Throwable $th) {
-      return $th;
+      error_log($th->getMessage());
+      return 0;
     }
   }
+
 
 
   function getTodayFacultySchedules()
