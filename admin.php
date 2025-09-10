@@ -464,11 +464,15 @@ class Admin
     include "connection.php";
     $data = json_decode($json, true);
     $schedId = $data["sched_id"];
-    $sql = "DELETE FROM tblfacultyschedule WHERE sched_id = :schedId";
-    $stmt = $conn->prepare($sql);
-    $stmt->bindParam(":schedId", $schedId);
-    $stmt->execute();
-    return $stmt->rowCount() > 0 ? 1 : 0;
+    try {
+      $sql = "DELETE FROM tblfacultyschedule WHERE sched_id = :schedId";
+      $stmt = $conn->prepare($sql);
+      $stmt->bindParam(":schedId", $schedId);
+      $stmt->execute();
+      return $stmt->rowCount() > 0 ? 1 : 0;
+    } catch (PDOException $e) {
+      return $e;
+    }
   }
 
 } //admin 
