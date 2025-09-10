@@ -161,7 +161,7 @@ class Admin
     try {
       $this->setFacultyInClassStatus();
       $sql = "SELECT a.*, 
-                  CONCAT(b.user_lastName, ', ', b.user_firstName, ' ', b.user_middleName) AS fullName,
+                  CONCAT(b.user_firstName, ' ', b.user_lastName) AS fullName, b.user_id, b.user_image,
                   s.facStatus_id, s.facStatus_statusMId, s.facStatus_note, s.facStatus_dateTime
             FROM tblfacultyschedule a
             INNER JOIN tbluser b ON b.user_id = a.sched_userId
@@ -194,6 +194,7 @@ class Admin
               "fullName" => $row['fullName'],
               "statusMId" => $row["facStatus_statusMId"],
               "status_note" => $row["facStatus_note"],
+              "user_image" => $row["user_image"],
               "schedules" => []
             ];
           }
@@ -245,15 +246,12 @@ class Admin
     $data = json_decode($json, true);
 
     $checkSql = "SELECT * 
-                FROM tblfacultyschedule 
-                WHERE sched_userId = :userId
-                  AND sched_day = :day
-                  AND (
-                      (:startTime BETWEEN sched_startTime AND sched_endTime)
-                      OR (:endTime BETWEEN sched_startTime AND sched_endTime)
-                      OR (sched_startTime BETWEEN :startTime AND :endTime)
-                      OR (sched_endTime BETWEEN :startTime AND :endTime)
-                  )";
+            FROM tblfacultyschedule 
+            WHERE sched_userId = :userId
+              AND sched_day = :day
+              AND (
+                ( :startTime < sched_endTime AND :endTime > sched_startTime )
+              )";
 
     $checkStmt = $conn->prepare($checkSql);
     $checkStmt->bindParam(":userId", $data["userId"]);
@@ -283,6 +281,7 @@ class Admin
     // { "userId": 2 }
     include "connection.php";
     $data = json_decode($json, true);
+    $this->setFacultyInClassStatus();
     $userId = $data["userId"];
     $sql = "SELECT * FROM tblfacultystatus WHERE facStatus_userId = :userId ORDER BY facStatus_dateTime DESC LIMIT 1";
     $stmt = $conn->prepare($sql);
@@ -347,14 +346,14 @@ class Admin
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
 
-  function getActiveFaculties(){
+  function getActiveFaculties()
+  {
     include "connection.php";
     $sql = "SELECT * FROM tbluser WHERE user_level = 2 AND user_isActive = 1";
     $stmt = $conn->prepare($sql);
     $stmt->execute();
     return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
   }
-
 } //admin 
 
 function recordExists($value, $table, $column)
