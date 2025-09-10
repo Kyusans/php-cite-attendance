@@ -81,18 +81,17 @@ class Admin
   function setFacultyInClassStatus()
   {
     include "connection.php";
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     date_default_timezone_set('Asia/Manila');
 
     $nowTs = time();
     $today = date('l'); // e.g. Wednesday
-    $todayDate = date('Y-m-d'); // current date for WHERE condition
+    $todayDate = date('Y-m-d');
 
     // get all schedules for today
     $sql = "SELECT a.sched_userId, a.sched_startTime, a.sched_endTime
-            FROM tblfacultyschedule a
-            INNER JOIN tbluser b ON b.user_id = a.sched_userId
-            WHERE a.sched_day = :today";
+        FROM tblfacultyschedule a
+        INNER JOIN tbluser b ON b.user_id = a.sched_userId
+        WHERE a.sched_day = :today";
     $stmt = $conn->prepare($sql);
     $stmt->bindParam(':today', $today);
     $stmt->execute();
@@ -103,6 +102,26 @@ class Admin
       $startTs = strtotime($sched['sched_startTime']);
       $endTs   = strtotime($sched['sched_endTime']);
 
+      // 1️⃣ Skip if their latest status today = 2 (Out)
+      $checkSql = "
+        SELECT facStatus_statusMId 
+        FROM tblfacultystatus 
+        WHERE facStatus_userId = :userId 
+          AND DATE(facStatus_dateTime) = :todayDate
+        ORDER BY facStatus_dateTime DESC 
+        LIMIT 1";
+      $checkStmt = $conn->prepare($checkSql);
+      $checkStmt->bindParam(':userId', $userId);
+      $checkStmt->bindParam(':todayDate', $todayDate);
+      $checkStmt->execute();
+      $latestStatus = $checkStmt->fetch(PDO::FETCH_ASSOC);
+
+      if ($latestStatus && (int)$latestStatus['facStatus_statusMId'] === 2) {
+        // skip to next user — do not auto-update
+        continue;
+      }
+
+      // 2️⃣ Determine status automatically
       if ($nowTs >= $startTs && $nowTs <= $endTs) {
         $statusMId = 3; // In Class
         $statusNote = "In Class";
@@ -111,45 +130,37 @@ class Admin
         $statusNote = "In Office";
       }
 
-      // 🔹 check if there’s already a row for this user today
-      $sqlCheck = "SELECT facStatus_id 
-                     FROM tblfacultystatus 
-                     WHERE facStatus_userId = :userId 
-                     AND DATE(facStatus_dateTime) = :todayDate
-                     ORDER BY facStatus_id DESC 
-                     LIMIT 1";
-      $stmtCheck = $conn->prepare($sqlCheck);
-      $stmtCheck->execute([':userId' => $userId, ':todayDate' => $todayDate]);
-      $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+      // 3️⃣ Update today’s row if it’s 1 or 3, otherwise insert new
+      $updateSql = "
+        UPDATE tblfacultystatus 
+        SET facStatus_statusMId = :statusMId, 
+            facStatus_note = :note, 
+            facStatus_dateTime = NOW()
+        WHERE facStatus_userId = :userId 
+          AND DATE(facStatus_dateTime) = :todayDate
+          AND facStatus_statusMId IN (1,3)";
+      $updateStmt = $conn->prepare($updateSql);
+      $updateStmt->bindParam(':statusMId', $statusMId);
+      $updateStmt->bindParam(':note', $statusNote);
+      $updateStmt->bindParam(':userId', $userId);
+      $updateStmt->bindParam(':todayDate', $todayDate);
+      $updateStmt->execute();
 
-      if ($existing) {
-        // 🔹 update existing row
-        $sqlUpdate = "UPDATE tblfacultystatus 
-                          SET facStatus_statusMId = :statusMId,
-                              facStatus_note = :note,
-                              facStatus_dateTime = NOW()
-                          WHERE facStatus_id = :id";
-        $stmtUpdate = $conn->prepare($sqlUpdate);
-        $stmtUpdate->execute([
-          ':statusMId' => $statusMId,
-          ':note'      => $statusNote,
-          ':id'        => $existing['facStatus_id']
-        ]);
-      } else {
-        // 🔹 insert new row if none exists
-        $sqlInsert = "INSERT INTO tblfacultystatus 
-                            (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime)
-                          VALUES (:userId, :statusMId, :note, NOW())";
-        $stmtInsert = $conn->prepare($sqlInsert);
-        $stmtInsert->execute([
-          ':userId'    => $userId,
-          ':statusMId' => $statusMId,
-          ':note'      => $statusNote
-        ]);
+      if ($updateStmt->rowCount() === 0) {
+        // Insert new record if none exists today
+        $insertSql = "
+            INSERT INTO tblfacultystatus 
+            (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime)
+            VALUES (:userId, :statusMId, :note, NOW())";
+        $insertStmt = $conn->prepare($insertSql);
+        $insertStmt->bindParam(':userId', $userId);
+        $insertStmt->bindParam(':statusMId', $statusMId);
+        $insertStmt->bindParam(':note', $statusNote);
+        $insertStmt->execute();
       }
     }
-  }
 
+  }
 
 
 
@@ -293,15 +304,59 @@ class Admin
   function changeFacultyStatus($json)
   {
     include "connection.php";
+    // make PDO throw exceptions so we can see errors
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
     $data = json_decode($json, true);
-    $sql = "INSERT INTO tblfacultystatus (facStatus_userId, facStatus_note, facStatus_statusMId, facStatus_dateTime) VALUES (:userId, :notes, :status, NOW())";
-    $stmt = $conn->prepare($sql);
-    $stmt->bindParam(":userId", $data["userId"]);
-    $stmt->bindParam(":notes", $data["notes"]);
-    $stmt->bindParam(":status", $data["status"]);
-    $stmt->execute();
-    return $stmt->rowCount() > 0 ? 1 : 0;
+    $userId = isset($data['userId']) ? (int)$data['userId'] : 0;
+    $status = isset($data['status']) ? (int)$data['status'] : 0;
+    $notes  = isset($data['notes']) ? $data['notes'] : '';
+
+    try {
+      // Check if there's already a row for today (use CURDATE() to match DB date)
+      $sqlCheck = "SELECT facStatus_id FROM tblfacultystatus 
+                     WHERE facStatus_userId = :userId
+                       AND DATE(facStatus_dateTime) = CURDATE()
+                     ORDER BY facStatus_id DESC LIMIT 1";
+      $stmtCheck = $conn->prepare($sqlCheck);
+      $stmtCheck->execute([':userId' => $userId]);
+      $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+      if ($existing) {
+        // Update today's row
+        $sql = "UPDATE tblfacultystatus
+                    SET facStatus_note = :notes,
+                        facStatus_statusMId = :status,
+                        facStatus_dateTime = NOW()
+                    WHERE facStatus_id = :id";
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([
+          ':notes'  => $notes,
+          ':status' => $status,
+          ':id'     => $existing['facStatus_id']
+        ]);
+      } else {
+        // Insert new row for today
+        $sql = "INSERT INTO tblfacultystatus 
+                    (facStatus_userId, facStatus_note, facStatus_statusMId, facStatus_dateTime) 
+                    VALUES (:userId, :notes, :status, NOW())";
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([
+          ':userId' => $userId,
+          ':notes'  => $notes,
+          ':status' => $status
+        ]);
+      }
+
+      return $stmt->rowCount() > 0 ? 1 : 0;
+    } catch (\PDOException $e) {
+      // log server-side for debugging (do not echo in prod)
+      error_log("changeFacultyStatus error: " . $e->getMessage());
+      return 0;
+    }
   }
+
+
 
   function addFaculty($json)
   {
