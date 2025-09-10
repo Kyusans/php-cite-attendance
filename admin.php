@@ -412,6 +412,52 @@ class Admin
     $stmt->execute();
     return $stmt->rowCount() > 0 ? $stmt->fetch(PDO::FETCH_ASSOC) : 0;
   }
+
+  function updateSchedule($json)
+  {
+    include "connection.php";
+    $data = json_decode($json, true);
+
+    $schedId   = $data["sched_id"];
+    $userId    = $data["userId"];
+    $day       = $data["day"];
+    $startTime = $data["startTime"];
+    $endTime   = $data["endTime"];
+
+    // 1️⃣ Check for conflicts except itself
+    $checkSql = "SELECT * 
+                 FROM tblfacultyschedule 
+                 WHERE sched_userId = :userId
+                   AND sched_day = :day
+                   AND sched_id <> :schedId
+                   AND ( :startTime < sched_endTime AND :endTime > sched_startTime )";
+    $checkStmt = $conn->prepare($checkSql);
+    $checkStmt->bindParam(":userId", $userId);
+    $checkStmt->bindParam(":day", $day);
+    $checkStmt->bindParam(":schedId", $schedId);
+    $checkStmt->bindParam(":startTime", $startTime);
+    $checkStmt->bindParam(":endTime", $endTime);
+    $checkStmt->execute();
+
+    if ($checkStmt->rowCount() > 0) {
+      return -1; // Conflict with another schedule
+    }
+
+    // 2️⃣ Update the schedule
+    $sql = "UPDATE tblfacultyschedule 
+            SET sched_day = :day,
+                sched_startTime = :startTime,
+                sched_endTime = :endTime
+            WHERE sched_id = :schedId";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":day", $day);
+    $stmt->bindParam(":startTime", $startTime);
+    $stmt->bindParam(":endTime", $endTime);
+    $stmt->bindParam(":schedId", $schedId);
+    $stmt->execute();
+
+    return $stmt->rowCount() > 0 ? 1 : 0;
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -516,6 +562,9 @@ switch ($operation) {
     break;
   case "getFacultyProfile":
     echo json_encode($admin->getFacultyProfile($json));
+    break;
+  case "updateSchedule":
+    echo $admin->updateSchedule($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
