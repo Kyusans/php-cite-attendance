@@ -81,89 +81,75 @@ class Admin
   function setFacultyInClassStatus()
   {
     include "connection.php";
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     date_default_timezone_set('Asia/Manila');
 
-    try {
-      $today = date("l"); // e.g., Wednesday
-      $currentTime = date("H:i:s"); // e.g., 17:00:00
+    $nowTs = time();
+    $today = date('l'); // e.g. Wednesday
+    $todayDate = date('Y-m-d'); // current date for WHERE condition
 
-      // Get today’s schedules
-      $sql = "SELECT * FROM tblfacultyschedule WHERE sched_day = :today ORDER BY sched_userId";
-      $stmt = $conn->prepare($sql);
-      $stmt->execute(['today' => $today]);
-      $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // get all schedules for today
+    $sql = "SELECT a.sched_userId, a.sched_startTime, a.sched_endTime
+            FROM tblfacultyschedule a
+            INNER JOIN tbluser b ON b.user_id = a.sched_userId
+            WHERE a.sched_day = :today";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(':today', $today);
+    $stmt->execute();
+    $schedules = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-      // Group by faculty
-      $groupedSchedules = [];
-      foreach ($schedules as $sched) {
-        $userId = $sched['sched_userId'];
-        $groupedSchedules[$userId][] = $sched;
+    foreach ($schedules as $sched) {
+      $userId  = $sched['sched_userId'];
+      $startTs = strtotime($sched['sched_startTime']);
+      $endTs   = strtotime($sched['sched_endTime']);
+
+      if ($nowTs >= $startTs && $nowTs <= $endTs) {
+        $statusMId = 3; // In Class
+        $statusNote = "In Class";
+      } else {
+        $statusMId = 1; // In Office
+        $statusNote = "In Office";
       }
 
-      foreach ($groupedSchedules as $userId => $facultySchedules) {
-        $isInClass = false;
+      // 🔹 check if there’s already a row for this user today
+      $sqlCheck = "SELECT facStatus_id 
+                     FROM tblfacultystatus 
+                     WHERE facStatus_userId = :userId 
+                     AND DATE(facStatus_dateTime) = :todayDate
+                     ORDER BY facStatus_id DESC 
+                     LIMIT 1";
+      $stmtCheck = $conn->prepare($sqlCheck);
+      $stmtCheck->execute([':userId' => $userId, ':todayDate' => $todayDate]);
+      $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
-        foreach ($facultySchedules as $sched) {
-          // Convert everything to timestamps for safe compare
-          $startTS = strtotime($sched['sched_startTime']);
-          $endTS   = strtotime($sched['sched_endTime']);
-          $nowTS   = strtotime($currentTime);
-
-          if ($nowTS >= $startTS && $nowTS <= $endTS) {
-            $isInClass = true;
-            break;
-          }
-        }
-
-        $newStatus = $isInClass ? 3 : 1;
-        $newNote   = $isInClass ? 'In Class' : 'In Office';
-
-        // Get today’s latest status row for this user
-        $latestSql = "SELECT facStatus_id, facStatus_statusMId 
-                          FROM tblfacultystatus 
-                          WHERE facStatus_userId = :userId 
-                            AND DATE(facStatus_dateTime) = CURDATE()
-                          ORDER BY facStatus_dateTime DESC 
-                          LIMIT 1";
-        $latestStmt = $conn->prepare($latestSql);
-        $latestStmt->execute(['userId' => $userId]);
-        $latestRow = $latestStmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($latestRow) {
-          // If status changed → update existing row
-          if ($latestRow['facStatus_statusMId'] != $newStatus) {
-            $updateSql = "UPDATE tblfacultystatus 
-                                  SET facStatus_statusMId = :statusMId, 
-                                      facStatus_note = :note, 
-                                      facStatus_dateTime = NOW() 
-                                  WHERE facStatus_id = :id";
-            $updateStmt = $conn->prepare($updateSql);
-            $updateStmt->execute([
-              'statusMId' => $newStatus,
-              'note' => $newNote,
-              'id' => $latestRow['facStatus_id']
-            ]);
-          }
-        } else {
-          // No row today → insert new one
-          $insertSql = "INSERT INTO tblfacultystatus 
-                              (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime) 
-                              VALUES (:userId, :statusMId, :note, NOW())";
-          $insertStmt = $conn->prepare($insertSql);
-          $insertStmt->execute([
-            'userId' => $userId,
-            'statusMId' => $newStatus,
-            'note' => $newNote
-          ]);
-        }
+      if ($existing) {
+        // 🔹 update existing row
+        $sqlUpdate = "UPDATE tblfacultystatus 
+                          SET facStatus_statusMId = :statusMId,
+                              facStatus_note = :note,
+                              facStatus_dateTime = NOW()
+                          WHERE facStatus_id = :id";
+        $stmtUpdate = $conn->prepare($sqlUpdate);
+        $stmtUpdate->execute([
+          ':statusMId' => $statusMId,
+          ':note'      => $statusNote,
+          ':id'        => $existing['facStatus_id']
+        ]);
+      } else {
+        // 🔹 insert new row if none exists
+        $sqlInsert = "INSERT INTO tblfacultystatus 
+                            (facStatus_userId, facStatus_statusMId, facStatus_note, facStatus_dateTime)
+                          VALUES (:userId, :statusMId, :note, NOW())";
+        $stmtInsert = $conn->prepare($sqlInsert);
+        $stmtInsert->execute([
+          ':userId'    => $userId,
+          ':statusMId' => $statusMId,
+          ':note'      => $statusNote
+        ]);
       }
-
-      return 1;
-    } catch (\Throwable $th) {
-      error_log($th->getMessage());
-      return 0;
     }
   }
+
 
 
 
@@ -233,6 +219,7 @@ class Admin
   {
     // { "userId": 1 }
     include "connection.php";
+    $this->setFacultyInClassStatus();
     $data = json_decode($json, true);
     $userId = $data["userId"];
     $sql = "SELECT sched_id, sched_day,
@@ -367,6 +354,17 @@ class Admin
     $stmt->execute();
     return $stmt->rowCount() > 0 ? $stmt->fetchAll(PDO::FETCH_ASSOC) : 0;
   }
+
+  function getFacultyProfile($json)
+  {
+    include "connection.php";
+    $data = json_decode($json, true);
+    $sql = "SELECT * FROM tbluser WHERE user_id = :userId";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":userId", $data["userId"]);
+    $stmt->execute();
+    return $stmt->rowCount() > 0 ? $stmt->fetch(PDO::FETCH_ASSOC) : 0;
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -468,6 +466,12 @@ switch ($operation) {
     break;
   case "getActiveFaculties":
     echo json_encode($admin->getActiveFaculties());
+    break;
+  case "getFacultyProfile":
+    echo json_encode($admin->getFacultyProfile($json));
+    break;
+  case "setFacultyInClassStatus":
+    echo $admin->setFacultyInClassStatus($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
