@@ -521,6 +521,40 @@ class Admin
       return 0;
     }
   }
+
+  function updateFaculty($json)
+  {
+    include "connection.php";
+    $data = json_decode($json, true);
+
+    $userId = $data["userId"];
+
+    if (recordExistsExceptSelf($data["email"], "tbluser", "user_email", $userId, $conn)) {
+      return -1; // Email already exists
+    }
+
+    if (recordExistsExceptSelf($data["schoolId"], "tbluser", "user_schoolId", $userId, $conn)) {
+      return -2; // School ID already exists
+    }
+
+    $sql = "UPDATE tbluser 
+            SET user_firstName = :firstName,
+                user_middleName = :middleName,
+                user_lastName = :lastName,
+                user_schoolId = :schoolId,
+                user_email = :email
+            WHERE user_id = :userId";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":firstName", $data["firstName"]);
+    $stmt->bindParam(":middleName", $data["middleName"]);
+    $stmt->bindParam(":lastName", $data["lastName"]);
+    $stmt->bindParam(":schoolId", $data["schoolId"]);
+    $stmt->bindParam(":email", $data["email"]);
+    $stmt->bindParam(":userId", $userId);
+    $stmt->execute();
+
+    return $stmt->rowCount() > 0 ? 1 : 0;
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -533,6 +567,17 @@ function recordExists($value, $table, $column)
   $count = $stmt->fetchColumn();
   return $count > 0;
 }
+
+function recordExistsExceptSelf($value, $table, $column, $userId, $conn)
+{
+  $sql = "SELECT COUNT(*) FROM $table WHERE $column = :value AND user_id != :userId";
+  $stmt = $conn->prepare($sql);
+  $stmt->bindParam(':value', $value);
+  $stmt->bindParam(':userId', $userId);
+  $stmt->execute();
+  return $stmt->fetchColumn() > 0;
+}
+
 
 function uploadImage()
 {
@@ -630,6 +675,9 @@ switch ($operation) {
     break;
   case "changeProfilePicture":
     echo $admin->changeProfilePicture($json);
+    break;
+  case "updateFaculty":
+    echo $admin->updateFaculty($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
