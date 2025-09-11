@@ -459,7 +459,8 @@ class Admin
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
 
-  function deleteSchedule($json){
+  function deleteSchedule($json)
+  {
     // { "sched_id": 1 }
     include "connection.php";
     $data = json_decode($json, true);
@@ -475,6 +476,51 @@ class Admin
     }
   }
 
+  function changeProfilePicture($json)
+  {
+    include "connection.php";
+    $data = json_decode($json, true);
+    $userId = $data["userId"];
+
+    $sql = "SELECT user_image FROM tbluser WHERE user_id = :userId";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":userId", $userId);
+    $stmt->execute();
+    $current = $stmt->fetch(PDO::FETCH_ASSOC);
+    $oldImage = $current ? $current['user_image'] : null;
+
+    // Upload new image
+    $returnValueImage = uploadImage();
+    switch ($returnValueImage) {
+      case 2:
+        return 2; // invalid file type
+      case 3:
+        return 3; // upload error
+      case 4:
+        return 4; // file too big
+      default:
+        break;
+    }
+
+    $sql = "UPDATE tbluser SET user_image = :image WHERE user_id = :userId";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":image", $returnValueImage);
+    $stmt->bindParam(":userId", $userId);
+    $stmt->execute();
+
+    if ($stmt->rowCount() > 0) {
+      // Delete old image if not default
+      if (!empty($oldImage) && $oldImage !== 'emptyImage.jpg') {
+        $oldImagePath = __DIR__ . '/images/' . $oldImage;
+        if (file_exists($oldImagePath)) {
+          unlink($oldImagePath);
+        }
+      }
+      return 1;
+    } else {
+      return 0;
+    }
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -525,19 +571,15 @@ function uploadImage()
   }
 
   // $returnValueImage = uploadImage();
-
   // switch ($returnValueImage) {
-  //     case 2:
-  //         // You cannot Upload files of this type!
-  //         return 2;
-  //     case 3:
-  //         // There was an error uploading your file!
-  //         return 3;
-  //     case 4:
-  //         // Your file is too big (25mb maximum)
-  //         return 4;
-  //     default:
-  //         break;
+  //   case 2:
+  //     return 2; // invalid file type
+  //   case 3:
+  //     return 3; // upload error
+  //   case 4:
+  //     return 4; // file too big
+  //   default:
+  //     break;
   // }
 }
 
@@ -585,6 +627,9 @@ switch ($operation) {
     break;
   case "deleteSchedule":
     echo $admin->deleteSchedule($json);
+    break;
+  case "changeProfilePicture":
+    echo $admin->changeProfilePicture($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
