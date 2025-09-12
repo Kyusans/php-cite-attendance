@@ -378,6 +378,7 @@ class Admin
       $returnValueImage = "emptyImage.jpg";
     }
 
+    $password = $data["schoolId"] . $data["lastName"];
     $sql = "INSERT INTO tbluser (user_firstName, user_middleName, user_lastName, user_schoolId, user_password, user_email, user_level, user_image, user_isActive)
             VALUES (:firstName, :middleName, :lastName, :schoolId, :password, :email, 2, :image, 1)";
     $stmt = $conn->prepare($sql);
@@ -385,7 +386,7 @@ class Admin
     $stmt->bindParam(":middleName", $data["middleName"]);
     $stmt->bindParam(":lastName", $data["lastName"]);
     $stmt->bindParam(":schoolId", $data["schoolId"]);
-    $stmt->bindParam(":password", $data["password"]);
+    $stmt->bindParam(":password", $password);
     $stmt->bindParam(":email", $data["email"]);
     $stmt->bindParam(":image", $returnValueImage);
 
