@@ -154,8 +154,6 @@ class Admin
   }
 
 
-
-
   function getTodayFacultySchedules()
   {
 
@@ -347,7 +345,6 @@ class Admin
       return 0;
     }
   }
-
 
 
   function addFaculty($json)
@@ -556,6 +553,42 @@ class Admin
 
     return $stmt->rowCount() > 0 ? 1 : 0;
   }
+
+  function changePassword($json)
+  {
+    include "connection.php";
+    $data = json_decode($json, true);
+
+    $userId = $data["userId"];
+    $oldPassword = $data["oldPassword"];
+    $newPassword = $data["newPassword"];
+
+    // 🔹 1. Get current password
+    $sql = "SELECT user_password FROM tbluser WHERE user_id = :userId";
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(":userId", $userId, PDO::PARAM_INT);
+    $stmt->execute();
+    $currentPassword = $stmt->fetchColumn();
+
+    if ($currentPassword === false) {
+      // user not found
+      return 0;
+    }
+
+    // 🔹 2. Check old password matches
+    if ($oldPassword !== $currentPassword) {
+      return -1; // Old password incorrect
+    }
+
+    // 🔹 3. Update to new password
+    $updateSql = "UPDATE tbluser SET user_password = :newPassword WHERE user_id = :userId";
+    $updateStmt = $conn->prepare($updateSql);
+    $updateStmt->bindParam(":newPassword", $newPassword);
+    $updateStmt->bindParam(":userId", $userId, PDO::PARAM_INT);
+    $updateStmt->execute();
+
+    return $updateStmt->rowCount() > 0 ? 1 : 0;
+  }
 } //admin 
 
 function recordExists($value, $table, $column)
@@ -679,6 +712,9 @@ switch ($operation) {
     break;
   case "updateFaculty":
     echo $admin->updateFaculty($json);
+    break;
+  case "changePassword":
+    echo $admin->changePassword($json);
     break;
   default:
     echo "WALAY '$operation' NGA OPERATION SA UBOS HAHAHAHA BOBO";
